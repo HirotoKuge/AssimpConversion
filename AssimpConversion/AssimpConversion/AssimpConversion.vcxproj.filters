@@ -1,44 +1,17 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Expoter">
-      <UniqueIdentifier>{6721f83b-a92f-4399-abb5-bc974dfb6c73}</UniqueIdentifier>
-    </Filter>
     <Filter Include="assimp">
       <UniqueIdentifier>{05beffcf-25ce-4d40-8a22-8564d0990883}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="ModelLoader">
-      <UniqueIdentifier>{05464597-18b3-465a-8108-10acba5bb62c}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Loder">
-      <UniqueIdentifier>{89058453-b45a-4286-a4cf-aa9899ebdfe2}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="ShaerdStruct.cpp" />
-    <ClCompile Include="AssimpLoader.cpp">
-      <Filter>ModelLoader</Filter>
-    </ClCompile>
-    <ClCompile Include="ModelDataExpoter.cpp">
-      <Filter>Expoter</Filter>
-    </ClCompile>
-    <ClCompile Include="MDLoader.cpp">
-      <Filter>Loder</Filter>
-    </ClCompile>
+    <ClCompile Include="AssimpConversion.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="SharedStruct.h" />
-    <ClInclude Include="AssimpLoader.h">
-      <Filter>ModelLoader</Filter>
-    </ClInclude>
     <ClInclude Include="resource.h" />
-    <ClInclude Include="ModelDataExpoter.h">
-      <Filter>Expoter</Filter>
-    </ClInclude>
-    <ClInclude Include="MDLoader.h">
-      <Filter>Loder</Filter>
-    </ClInclude>
+    <ClInclude Include="AssimpConversion.h" />
   </ItemGroup>
   <ItemGroup>
     <Library Include="assimp\lib\x64-Debug\assimp-vc140-mtd.lib">

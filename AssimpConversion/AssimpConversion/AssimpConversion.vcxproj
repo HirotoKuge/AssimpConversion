@@ -145,18 +145,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="AssimpLoader.h" />
-    <ClInclude Include="MDLoader.h" />
-    <ClInclude Include="ModelDataExpoter.h" />
+    <ClInclude Include="AssimpConversion.h" />
     <ClInclude Include="resource.h" />
-    <ClInclude Include="SharedStruct.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="AssimpLoader.cpp" />
+    <ClCompile Include="AssimpConversion.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="MDLoader.cpp" />
-    <ClCompile Include="ModelDataExpoter.cpp" />
-    <ClCompile Include="ShaerdStruct.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Library Include="assimp\lib\x64-Debug\assimp-vc140-mtd.lib" />

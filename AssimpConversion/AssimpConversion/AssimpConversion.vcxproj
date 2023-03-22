@@ -146,11 +146,16 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="AssimpConversion.h" />
+    <ClInclude Include="math.h" />
+    <ClInclude Include="Matrix.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="Vector.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AssimpConversion.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Matrix.cpp" />
+    <ClCompile Include="Vector.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Library Include="assimp\lib\x64-Debug\assimp-vc140-mtd.lib" />

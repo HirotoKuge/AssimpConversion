@@ -1,7 +1,8 @@
 #include "AssimpConversion.h"
+#include "Vector.h"
 #include <filesystem>
-#include<time.h>
-#include<iostream>
+#include <time.h>
+#include <iostream>
 
 namespace fs = std::filesystem;
 
@@ -36,6 +37,29 @@ namespace mdFileFormat {
 		float uv[2];		// UV座標
 	};
 };
+
+//=============================================================================
+// MD_Vertex:頂点データの構造体
+//=============================================================================
+struct MD_Vertex {
+	Vector3 pos;			//座標
+	Vector3 normal;			//法線
+	Vector3 tangent;		//接ベクトル
+	Vector3 binormal;		//従ベクトル
+	Vector2 uv;				//UV座標
+};
+
+//=============================================================================
+// MD_UnitMesh:単位メッシュ
+//=============================================================================
+struct MD_UnitMesh {
+	std::vector<MD_Material>	materials;	// マテリアル
+	std::vector<MD_Vertex>		vertices;	// 頂点
+	std::vector<uint32_t>		indecies;	// インデックス
+};
+
+
+std::vector<MD_UnitMesh> g_meshes; //メッシュパーツ
 
 //=============================================================================
 // ディレクトリパスを取得
@@ -157,16 +181,23 @@ void AssimpConversion::ComvertToMD(ComvertSettings& setting){
 
 		// メッシュ用のヘッダーを書き出し
 		mdFileFormat::MD_UnitMeshHeader meshHeader;
-		meshHeader.numMaterial = 5; // ディフューズ,メタルネス,ラフネス,法線,ハイトの５つ：拡張変更可能 
+		meshHeader.numMaterial = 1; // 複数マテリアルも対応できけど基本１
 		meshHeader.numVertex = mesh->mNumVertices; // 頂点数
-		meshHeader.numIndex = mesh->mNumFaces * 3; // 面１つにつきインデックスは3つ
+		meshHeader.numIndex = mesh->mNumFaces * 3; // 面１つにつきインデックスは3つ(のはず)
 		fwrite(&meshHeader, sizeof(mdFileFormat::MD_UnitMeshHeader), 1, outputfile);
 		
 		//----------------------------
 		// マテリアルデータを書き出す
 		//----------------------------
 		//!{
-		auto fwriteMaterial = [&](
+		
+		/*****************************************************************//**
+		 * \brief テクスチャのファイル名を書き出す
+		 * 
+		 * \param fileName	書き出すデータ：ファイル名(ファイルパスじゃないよ)
+		 * \param writeFile 書き出し先
+		 *********************************************************************/
+		auto fwriteTextureFileName = [&](
 			std::string& fileName,
 			FILE* writeFile
 		){
@@ -182,11 +213,33 @@ void AssimpConversion::ComvertToMD(ComvertSettings& setting){
 
 		};
 		
-		fwriteMaterial(setting.pExpandMaterial->AlbedMapFileName, outputfile);
-		fwriteMaterial(setting.pExpandMaterial->MetalnessMapFileName, outputfile);
-		fwriteMaterial(setting.pExpandMaterial->RoughnessMapFileName, outputfile);
-		fwriteMaterial(setting.pExpandMaterial->NormalMapFileName, outputfile);
-		fwriteMaterial(setting.pExpandMaterial->HeightMapFileName, outputfile);
+		// ユーザー拡張のマテリアルを使う
+		// TODO：メッシュ単位でマテリアルを設定する場合に対応できないので何とかする
+		if (setting.useExpandMaterial) {
+			fwriteTextureFileName(setting.pExpandMaterial->AlbedMapFileName, outputfile);
+			fwriteTextureFileName(setting.pExpandMaterial->MetalnessMapFileName, outputfile);
+			fwriteTextureFileName(setting.pExpandMaterial->RoughnessMapFileName, outputfile);
+			fwriteTextureFileName(setting.pExpandMaterial->NormalMapFileName, outputfile);
+			fwriteTextureFileName(setting.pExpandMaterial->HeightMapFileName, outputfile);
+		}
+		// AssimpSceneからマテリアルを解析して書き出す
+		else {
+			// メッシュに対応するマテリアルを取り出す
+			auto assimpMaterial = scene->mMaterials[mesh->mMaterialIndex];
+			
+			// 解析データの格納先
+			MD_Material parsedMaterial;
+			
+			// 解析
+			ParseMaterial(parsedMaterial, assimpMaterial);
+
+			fwriteTextureFileName(parsedMaterial.AlbedMapFileName, outputfile);
+			fwriteTextureFileName(parsedMaterial.MetalnessMapFileName, outputfile);
+			fwriteTextureFileName(parsedMaterial.RoughnessMapFileName, outputfile);
+			fwriteTextureFileName(parsedMaterial.NormalMapFileName, outputfile);
+			fwriteTextureFileName(parsedMaterial.HeightMapFileName, outputfile);
+
+		}
 
 		//!}
 		//----------------------------
@@ -242,7 +295,7 @@ void AssimpConversion::ComvertToMD(ComvertSettings& setting){
 		//----------------------------
 		//!{
 		for (auto j = 0; j < mesh->mNumFaces; j++) {
-			auto face = mesh->mFaces[j];
+			auto& face = mesh->mFaces[j];
 			assert(face.mNumIndices == 3); // フェイス単位のインデックス数は3つでないといけない
 
 			for (auto k = 0; k < face.mNumIndices; k++) {
@@ -260,13 +313,146 @@ void AssimpConversion::ComvertToMD(ComvertSettings& setting){
 }
 
 //=============================================================================
+// 読み込みテスト
+//=============================================================================
+void AssimpConversion::LoadTest(std::string loadFilePath){
+	// ファイルを開けるで
+	FILE* pLoadFile = fopen(loadFilePath.c_str(), "rb");
+	if (pLoadFile == nullptr) {
+		MessageBoxA(nullptr, "mdファイルが開けません", "エラー", MB_OK);
+		return;
+	}
+
+	//----------------------------
+	// mdファイルのヘッダーを読み込み
+	//----------------------------
+	//!{
+	mdFileFormat::MD_Header header;
+	fread(&header, sizeof(header), 1, pLoadFile);
+	if (header.version != mdFileFormat::VERSION) {
+		//mdファイルのバージョンが違う
+		MessageBoxA(nullptr, "mdファイルのバージョンが異なっています", "エラー", MB_OK);
+	}
+	//!}
+	//----------------------------
+	// メッシュ単位で読みだす
+	//----------------------------
+	//!{
+	
+	// メッシュサイズ分確保 
+	g_meshes.resize(header.numMeshes);
+
+	// メッシュ単位でループ
+	for (auto i = 0; i < header.numMeshes; i++) {
+		// 格納先の設定
+		auto& mesh = g_meshes[i];
+		
+		//----------------------------
+		// 単位メッシュのヘッダー読み出し
+		//----------------------------
+		//!{
+		mdFileFormat::MD_UnitMeshHeader meshHeader;
+		fread(&meshHeader, sizeof(mdFileFormat::MD_UnitMeshHeader), 1, pLoadFile);
+		//!} 
+		//----------------------------
+		// マテリアルデータの読み出し
+		//----------------------------
+		//!{
+		
+		// マテリアルの数分領域を確保
+		mesh.materials.resize(meshHeader.numMaterial);
+		
+		// 読み出し
+		for (auto j = 0; j < meshHeader.numMaterial; j++) {
+			// 書き出し先の設定
+			auto& material = mesh.materials[j];
+
+			/*****************************************************************//**
+			 * \brief マテリアル読み出し関数
+			 * 
+			 * \param fp ファイルポインタ
+			 * \param dst 格納先
+			 *********************************************************************/
+			auto LoadTextureFileName = [&](FILE* fp,std::string& dst){
+				dst.clear();
+
+				// 文字列の長さを取得
+				size_t fileNameLength = 0;
+				fread(&fileNameLength, sizeof(size_t), 1, pLoadFile);
+
+				// １文字ずつ読みだす
+				for (auto k = 0; k < fileNameLength; k++) {
+					char tmp;
+					fread(&tmp, sizeof(char), 1, fp);
+					dst += tmp;
+				}
+
+			};
+
+			LoadTextureFileName(pLoadFile, material.AlbedMapFileName);
+			LoadTextureFileName(pLoadFile, material.MetalnessMapFileName);
+			LoadTextureFileName(pLoadFile, material.RoughnessMapFileName);
+			LoadTextureFileName(pLoadFile, material.NormalMapFileName);
+			LoadTextureFileName(pLoadFile, material.HeightMapFileName);
+
+		}
+		//!} 
+		//----------------------------
+		// 頂点データの読み出し
+		//----------------------------
+		//!{
+		
+		// 領域確保
+		mesh.vertices.resize(meshHeader.numVertex);
+
+		for (auto j = 0; j < meshHeader.numVertex; j++) {
+			// 1頂点ごとに読みだす
+			mdFileFormat::MD_LoadVertex vertexTmp;
+			fread(&vertexTmp, sizeof(vertexTmp), 1, pLoadFile);
+
+			// 格納
+			auto& vertex = mesh.vertices[j];
+			vertex.pos.Set(vertexTmp.pos[0], vertexTmp.pos[1], vertexTmp.pos[2]);
+			vertex.normal.Set(vertexTmp.normal[0], vertexTmp.normal[1], vertexTmp.normal[2]);
+			vertex.uv.Set(vertexTmp.uv[0], vertexTmp.uv[1]);
+			vertex.tangent.Set(vertexTmp.tangent[0], vertexTmp.tangent[1], vertexTmp.tangent[2]);
+			vertex.binormal.Set(vertexTmp.binormal[0], vertexTmp.binormal[1], vertexTmp.binormal[2]);
+		}
+		
+		//!}
+		//----------------------------
+		// インデックスの読み出し
+		//----------------------------
+		//!{ 
+		
+		// 領域確保
+		mesh.indecies.resize(meshHeader.numIndex);
+		
+		// 読み出し
+		for (auto j = 0; j < meshHeader.numIndex; j++) {
+			uint32_t index;
+			fread(&index, sizeof(uint32_t), 1, pLoadFile);
+			mesh.indecies[j] = index;
+		}
+		
+		//!}  
+	}
+	//!} 
+	
+
+	fclose(pLoadFile);
+
+	
+}
+
+//=============================================================================
 // Assimpのマテリアルを解析
 //=============================================================================
-void AssimpConversion::ParseMaterial(MD_Material& dst, aiMaterial& assimpMaterial){
+void AssimpConversion::ParseMaterial(MD_Material& dst, aiMaterial* assimpMaterial){
 	// アルベドマップ
 	{
 		aiString path;
-		if (assimpMaterial.Get(AI_MATKEY_TEXTURE_DIFFUSE(0), path) == AI_SUCCESS){
+		if (assimpMaterial->Get(AI_MATKEY_TEXTURE_DIFFUSE(0), path) == AI_SUCCESS){
 			auto fileName = GetFileName(ConvertToWStr(path));
 			dst.AlbedMapFileName = ToUTF8(fileName);
 		}
@@ -278,7 +464,7 @@ void AssimpConversion::ParseMaterial(MD_Material& dst, aiMaterial& assimpMateria
 	// メタルネスマップ：光沢
 	{
 		aiString path;
-		if (assimpMaterial.Get(AI_MATKEY_TEXTURE_SPECULAR(0), path) == AI_SUCCESS) {
+		if (assimpMaterial->Get(AI_MATKEY_TEXTURE_SPECULAR(0), path) == AI_SUCCESS) {
 			auto fileName = GetFileName(ConvertToWStr(path));
 			dst.AlbedMapFileName = ToUTF8(fileName);
 		}
@@ -290,7 +476,7 @@ void AssimpConversion::ParseMaterial(MD_Material& dst, aiMaterial& assimpMateria
 	// ラフネスマップ：面の粗さ
 	{
 		aiString path;
-		if (assimpMaterial.Get(AI_MATKEY_TEXTURE_SHININESS(0), path) == AI_SUCCESS) {
+		if (assimpMaterial->Get(AI_MATKEY_TEXTURE_SHININESS(0), path) == AI_SUCCESS) {
 			auto fileName = GetFileName(ConvertToWStr(path));
 			dst.AlbedMapFileName = ToUTF8(fileName);
 		}
@@ -299,5 +485,29 @@ void AssimpConversion::ParseMaterial(MD_Material& dst, aiMaterial& assimpMateria
 		}
 	}
 
+	// 法線マップ
+	{
+		aiString path;
+		if (assimpMaterial->Get(AI_MATKEY_TEXTURE_NORMALS(0), path) == AI_SUCCESS) {
+			auto fileName = GetFileName(ConvertToWStr(path));
+			dst.NormalMapFileName = ToUTF8(fileName);
+		}
+		else {
+			dst.NormalMapFileName.clear();
+		}
+	}
+
+
+	// ハイトマップ
+	{
+		aiString path;
+		if (assimpMaterial->Get(AI_MATKEY_TEXTURE_HEIGHT(0), path) == AI_SUCCESS) {
+			auto fileName = GetFileName(ConvertToWStr(path));
+			dst.HeightMapFileName = ToUTF8(fileName);
+		}
+		else {
+			dst.HeightMapFileName.clear();
+		}
+	}
 }
 

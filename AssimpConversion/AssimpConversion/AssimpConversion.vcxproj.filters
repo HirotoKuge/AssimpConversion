@@ -8,10 +8,15 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="AssimpConversion.cpp" />
+    <ClCompile Include="Vector.cpp" />
+    <ClCompile Include="Matrix.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="resource.h" />
     <ClInclude Include="AssimpConversion.h" />
+    <ClInclude Include="Vector.h" />
+    <ClInclude Include="math.h" />
+    <ClInclude Include="Matrix.h" />
   </ItemGroup>
   <ItemGroup>
     <Library Include="assimp\lib\x64-Debug\assimp-vc140-mtd.lib">

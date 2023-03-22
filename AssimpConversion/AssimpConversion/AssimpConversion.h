@@ -35,8 +35,8 @@ struct MD_Material{
 // LoadSettings：Assimpでモデルデータを読み込む際の設定
 //=============================================================================
 struct ComvertSettings {
-	std::string loadFilePath = nullptr; // ファイルパス
-	std::string exportFileName = nullptr; // 出力するファイル名
+	std::string loadFilePath; // ファイルパス
+	std::string exportFileName; // 出力するファイル名
 	bool inverseU = false; // U座標を反転させるか
     bool inverseV = false; // V座標を反転させるか
 	bool useExpandMaterial = false;			// ユーザー定義のマテリアルを使うかどうか
@@ -71,6 +71,13 @@ public:
      *********************************************************************/
     void ComvertToMD(ComvertSettings& setting);
 
+	/*****************************************************************//**
+	 * \brief .md読み込みテスト
+	 * 
+	 * \param loadFilePath 読み込む.mdファイルパス
+	 *********************************************************************/
+	void LoadTest(std::string loadFilePath);
+
 	//!} 
 private:
 	//-----------------------------------------------------------------------------
@@ -89,7 +96,7 @@ private:
 	 * \param dst			 解析データの格納先
 	 * \param assimpMaterial Assimpマテリアルデータ
 	 *********************************************************************/
-	void ParseMaterial(MD_Material& dst, aiMaterial& assimpMaterial);
+	void ParseMaterial(MD_Material& dst, aiMaterial* assimpMaterial);
 	
 	
 	//!} 
